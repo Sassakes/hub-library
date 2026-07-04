@@ -9,6 +9,7 @@ function fmtDate(ts) {
 
 export default async function Home({ searchParams }) {
   const manifest = await getManifest();
+  const links = manifest.links || {};
   const cats = [...manifest.categories].sort((a, b) => a.order - b.order);
   const activeCat = searchParams?.cat || null;
 
@@ -26,6 +27,7 @@ export default async function Home({ searchParams }) {
 
   const visible = activeCat ? sections.filter((s) => s.cat.id === activeCat) : sections;
   const total = manifest.docs.length;
+  const xHandle = links.x ? "@" + links.x.replace(/\/+$/, "").split("/").pop() : null;
 
   return (
     <div className="shell">
@@ -49,12 +51,39 @@ export default async function Home({ searchParams }) {
             {s.cat.name} <span className="nav-count">{s.docs.length}</span>
           </Link>
         ))}
+
+        {(links.tradingview || links.x) && (
+          <div className="ext-block">
+            <div className="ext-title">// externes</div>
+            {links.tradingview && (
+              <a href={links.tradingview} target="_blank" rel="noreferrer" className="ext-link">
+                <span className="ext-icon">TV</span> TradingView
+              </a>
+            )}
+            {links.x && (
+              <a href={links.x} target="_blank" rel="noreferrer" className="ext-link">
+                <span className="ext-icon">𝕏</span> {xHandle || "X"}
+              </a>
+            )}
+          </div>
+        )}
+
         <div className="sidebar-footer">
           <Link href="/admin">→ admin</Link>
         </div>
       </aside>
 
       <main className="main">
+        {links.discord?.enabled && links.discord?.invite ? (
+          <a href={links.discord.invite} target="_blank" rel="noreferrer" className="discord-strip live">
+            <span className="dot" /> Le Discord The Hub est ouvert — <strong>rejoindre&nbsp;→</strong>
+          </a>
+        ) : (
+          <div className="discord-strip">
+            <span className="dot idle" /> // Discord The Hub — en préparation. Ça arrive.
+          </div>
+        )}
+
         {total === 0 && (
           <p className="empty">
             // Aucun document pour l&apos;instant. Passe par l&apos;admin pour uploader tes .html.
@@ -77,6 +106,26 @@ export default async function Home({ searchParams }) {
                 </div>
               </section>
             )
+        )}
+
+        {!activeCat && links.scripts?.length > 0 && (
+          <section>
+            <h2 className="section-title">Indicateurs TradingView</h2>
+            <div className="grid">
+              {links.scripts.map((s) => (
+                <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="card script-card">
+                  <div className="title">{s.name}</div>
+                  <div className="meta">Pine Script · tradingview.com ↗</div>
+                </a>
+              ))}
+              {links.tradingview && (
+                <a href={links.tradingview} target="_blank" rel="noreferrer" className="card script-card more">
+                  <div className="title">Tous les scripts publiés →</div>
+                  <div className="meta">profil TradingView</div>
+                </a>
+              )}
+            </div>
+          </section>
         )}
       </main>
     </div>

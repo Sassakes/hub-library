@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/session";
-import { getManifest, saveManifest } from "@/lib/store";
+import { getManifest, saveManifest, sanitizeLinks } from "@/lib/store";
 
 export async function GET() {
   if (!isAuthenticated()) {
@@ -21,12 +21,12 @@ export async function PUT(request) {
 
   // On ne laisse pas le client toucher aux URLs blob : on repart du manifest serveur
   const current = await getManifest();
-  const byUrl = new Map(current.docs.map((d) => [d.slug, d]));
+  const bySlug = new Map(current.docs.map((d) => [d.slug, d]));
 
   const docs = incoming.docs
-    .filter((d) => byUrl.has(d.slug))
+    .filter((d) => bySlug.has(d.slug))
     .map((d) => {
-      const server = byUrl.get(d.slug);
+      const server = bySlug.get(d.slug);
       return {
         ...server,
         title: typeof d.title === "string" && d.title.trim() ? d.title.trim().slice(0, 120) : server.title,
@@ -48,7 +48,9 @@ export async function PUT(request) {
     if (d.categoryId && !catIds.has(d.categoryId)) d.categoryId = null;
   }
 
-  const manifest = { categories, docs };
+  const links = sanitizeLinks(incoming.links || current.links);
+
+  const manifest = { categories, docs, links };
   await saveManifest(manifest);
   return NextResponse.json({ ok: true, manifest });
 }

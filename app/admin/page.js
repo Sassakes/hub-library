@@ -12,6 +12,7 @@ export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [loginErr, setLoginErr] = useState("");
   const [manifest, setManifest] = useState(null);
+  const [linksDraft, setLinksDraft] = useState(null);
   const [toast, setToast] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadCat, setUploadCat] = useState("");
@@ -34,6 +35,7 @@ export default function AdminPage() {
     }
     const data = await res.json();
     setManifest(data);
+    setLinksDraft((prev) => prev ?? structuredClone(data.links || {}));
     setAuthed(true);
   }, []);
 
@@ -62,6 +64,7 @@ export default function AdminPage() {
     await fetch("/api/auth/logout", { method: "POST" });
     setAuthed(false);
     setManifest(null);
+    setLinksDraft(null);
   }
 
   // --- Persistance ---
@@ -80,6 +83,30 @@ export default function AdminPage() {
       showToast("✗ erreur de sauvegarde");
       loadManifest();
     }
+  }
+
+  // --- Liens ---
+  function saveLinks() {
+    persist({ ...manifest, links: linksDraft });
+  }
+  function setLink(key, value) {
+    setLinksDraft((d) => ({ ...d, [key]: value }));
+  }
+  function setDiscord(key, value) {
+    setLinksDraft((d) => ({ ...d, discord: { ...(d.discord || {}), [key]: value } }));
+  }
+  function setScript(i, key, value) {
+    setLinksDraft((d) => {
+      const scripts = [...(d.scripts || [])];
+      scripts[i] = { ...scripts[i], [key]: value };
+      return { ...d, scripts };
+    });
+  }
+  function addScript() {
+    setLinksDraft((d) => ({ ...d, scripts: [...(d.scripts || []), { name: "", url: "" }] }));
+  }
+  function removeScript(i) {
+    setLinksDraft((d) => ({ ...d, scripts: (d.scripts || []).filter((_, j) => j !== i) }));
   }
 
   // --- Upload ---
@@ -231,6 +258,7 @@ export default function AdminPage() {
 
   const cats = [...manifest.categories].sort((a, b) => a.order - b.order);
   const uncategorized = docsIn(null);
+  const L = linksDraft || {};
 
   return (
     <div className="admin-wrap">
@@ -294,6 +322,84 @@ export default function AdminPage() {
         />
       </div>
 
+      {/* Liens & réseaux */}
+      <div className="panel">
+        <h2>Liens &amp; réseaux</h2>
+        <div className="links-form">
+          <label>
+            Profil TradingView
+            <input
+              type="url"
+              placeholder="https://www.tradingview.com/u/…"
+              value={L.tradingview || ""}
+              onChange={(e) => setLink("tradingview", e.target.value)}
+            />
+          </label>
+          <label>
+            Compte X
+            <input
+              type="url"
+              placeholder="https://x.com/…"
+              value={L.x || ""}
+              onChange={(e) => setLink("x", e.target.value)}
+            />
+          </label>
+
+          <div className="toggle-row">
+            <input
+              type="checkbox"
+              id="discord-toggle"
+              checked={Boolean(L.discord?.enabled)}
+              onChange={(e) => setDiscord("enabled", e.target.checked)}
+            />
+            <label htmlFor="discord-toggle" style={{ cursor: "pointer" }}>
+              Discord ouvert (off = teaser &quot;en préparation&quot;)
+            </label>
+          </div>
+          {L.discord?.enabled && (
+            <label>
+              Lien d&apos;invitation Discord
+              <input
+                type="url"
+                placeholder="https://discord.gg/…"
+                value={L.discord?.invite || ""}
+                onChange={(e) => setDiscord("invite", e.target.value)}
+              />
+            </label>
+          )}
+
+          <div className="hint" style={{ marginTop: 6 }}>
+            Indicateurs mis en avant (nom + lien script) :
+          </div>
+          {(L.scripts || []).map((s, i) => (
+            <div key={i} className="script-edit-row">
+              <input
+                placeholder="Nom de l'indicateur"
+                value={s.name}
+                onChange={(e) => setScript(i, "name", e.target.value)}
+              />
+              <input
+                type="url"
+                placeholder="https://www.tradingview.com/script/…"
+                value={s.url}
+                onChange={(e) => setScript(i, "url", e.target.value)}
+              />
+              <button className="btn small danger" onClick={() => removeScript(i)}>
+                ✕
+              </button>
+            </div>
+          ))}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn small" onClick={addScript}>
+              + indicateur
+            </button>
+            <button className="btn primary small" onClick={saveLinks}>
+              Sauvegarder les liens
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Catégories */}
       <div className="panel">
         <h2>
@@ -333,9 +439,7 @@ export default function AdminPage() {
                 onDelete={deleteDoc}
               />
             ))}
-            {docsIn(c.id).length === 0 && (
-              <div className="doc-row hint">// vide</div>
-            )}
+            {docsIn(c.id).length === 0 && <div className="doc-row hint">// vide</div>}
           </div>
         ))}
 
