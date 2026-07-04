@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/session";
-import { getManifest, saveManifest, sanitizeLinks } from "@/lib/store";
+import { getManifest, saveManifest, sanitizeLinks, sanitizeIndicator } from "@/lib/store";
 
 export async function GET() {
   if (!isAuthenticated()) {
@@ -32,6 +32,7 @@ export async function PUT(request) {
         title: typeof d.title === "string" && d.title.trim() ? d.title.trim().slice(0, 120) : server.title,
         categoryId: d.categoryId || null,
         order: Number.isFinite(d.order) ? d.order : server.order,
+        indicator: sanitizeIndicator(d.indicator ?? server.indicator),
       };
     });
 

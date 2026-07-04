@@ -47,6 +47,7 @@ export async function POST(request) {
       blobPath,
       size: file.size,
       createdAt: Date.now(),
+      indicator: { enabled: false, url: "" },
     };
     manifest.docs.push(doc);
     added.push(doc);

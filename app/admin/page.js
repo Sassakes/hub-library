@@ -20,6 +20,18 @@ export default function AdminPage() {
   const fileRef = useRef(null);
   const toastTimer = useRef(null);
 
+  // Miroir synchrone du manifest : les mutations partent toujours de l'état
+  // le plus récent, même en cas de clics rapides (l'état React est asynchrone).
+  const manifestRef = useRef(null);
+  // File de sauvegardes : les PUT partent un par un, dans l'ordre.
+  const persistChain = useRef(Promise.resolve());
+  const persistSeq = useRef(0);
+
+  const applyManifest = useCallback((m) => {
+    manifestRef.current = m;
+    setManifest(m);
+  }, []);
+
   const showToast = useCallback((msg) => {
     setToast(msg);
     clearTimeout(toastTimer.current);
@@ -34,10 +46,10 @@ export default function AdminPage() {
       return;
     }
     const data = await res.json();
-    setManifest(data);
+    applyManifest(data);
     setLinksDraft((prev) => prev ?? structuredClone(data.links || {}));
     setAuthed(true);
-  }, []);
+  }, [applyManifest]);
 
   useEffect(() => {
     loadManifest();
@@ -63,31 +75,50 @@ export default function AdminPage() {
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
     setAuthed(false);
-    setManifest(null);
+    applyManifest(null);
     setLinksDraft(null);
   }
 
-  // --- Persistance ---
-  async function persist(next) {
-    setManifest(next);
-    const res = await fetch("/api/admin/manifest", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(next),
+  // --- Persistance (sérialisée) ---
+  function persist(next) {
+    applyManifest(next); // optimiste, immédiat
+    const seq = ++persistSeq.current;
+    persistChain.current = persistChain.current.then(async () => {
+      try {
+        const res = await fetch("/api/admin/manifest", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          // On envoie l'état le plus récent connu au moment du départ
+          body: JSON.stringify(manifestRef.current),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          // On n'applique la réponse serveur que si aucune sauvegarde
+          // plus récente n'a été demandée entre-temps.
+          if (seq === persistSeq.current) applyManifest(data.manifest);
+          showToast("✓ sauvegardé");
+        } else {
+          showToast("✗ erreur de sauvegarde");
+          if (seq === persistSeq.current) loadManifest();
+        }
+      } catch {
+        showToast("✗ erreur réseau");
+      }
     });
-    if (res.ok) {
-      const data = await res.json();
-      setManifest(data.manifest);
-      showToast("✓ sauvegardé");
-    } else {
-      showToast("✗ erreur de sauvegarde");
-      loadManifest();
-    }
+    return persistChain.current;
+  }
+
+  function mutate(fn) {
+    const next = structuredClone(manifestRef.current);
+    fn(next);
+    persist(next);
   }
 
   // --- Liens ---
   function saveLinks() {
-    persist({ ...manifest, links: linksDraft });
+    mutate((m) => {
+      m.links = linksDraft;
+    });
   }
   function setLink(key, value) {
     setLinksDraft((d) => ({ ...d, [key]: value }));
@@ -124,7 +155,7 @@ export default function AdminPage() {
     setUploading(false);
     if (res.ok) {
       const data = await res.json();
-      setManifest(data.manifest);
+      applyManifest(data.manifest);
       showToast(`✓ ${data.added.length} fichier(s) ajouté(s)`);
     } else {
       const data = await res.json().catch(() => ({}));
@@ -136,39 +167,40 @@ export default function AdminPage() {
   function addCategory() {
     const name = prompt("Nom de la catégorie :");
     if (!name || !name.trim()) return;
-    const next = structuredClone(manifest);
-    next.categories.push({ id: newId(), name: name.trim(), order: next.categories.length });
-    persist(next);
+    mutate((m) => {
+      m.categories.push({ id: newId(), name: name.trim(), order: m.categories.length });
+    });
   }
 
   function renameCategory(id) {
-    const cat = manifest.categories.find((c) => c.id === id);
+    const cat = manifestRef.current.categories.find((c) => c.id === id);
     const name = prompt("Nouveau nom :", cat?.name || "");
     if (!name || !name.trim()) return;
-    const next = structuredClone(manifest);
-    next.categories.find((c) => c.id === id).name = name.trim();
-    persist(next);
+    mutate((m) => {
+      m.categories.find((c) => c.id === id).name = name.trim();
+    });
   }
 
   function deleteCategory(id) {
-    const count = manifest.docs.filter((d) => d.categoryId === id).length;
+    const count = manifestRef.current.docs.filter((d) => d.categoryId === id).length;
     if (!confirm(`Supprimer cette catégorie ? ${count} document(s) passeront en "Sans catégorie".`)) return;
-    const next = structuredClone(manifest);
-    next.categories = next.categories.filter((c) => c.id !== id);
-    next.docs.forEach((d) => {
-      if (d.categoryId === id) d.categoryId = null;
+    mutate((m) => {
+      m.categories = m.categories.filter((c) => c.id !== id);
+      m.docs.forEach((d) => {
+        if (d.categoryId === id) d.categoryId = null;
+      });
     });
-    persist(next);
   }
 
   function moveCategory(id, dir) {
-    const next = structuredClone(manifest);
-    const sorted = next.categories.sort((a, b) => a.order - b.order);
-    const i = sorted.findIndex((c) => c.id === id);
-    const j = i + dir;
-    if (j < 0 || j >= sorted.length) return;
-    [sorted[i].order, sorted[j].order] = [sorted[j].order, sorted[i].order];
-    persist(next);
+    mutate((m) => {
+      const sorted = m.categories.sort((a, b) => a.order - b.order);
+      sorted.forEach((c, idx) => (c.order = idx));
+      const i = sorted.findIndex((c) => c.id === id);
+      const j = i + dir;
+      if (j < 0 || j >= sorted.length) return;
+      [sorted[i].order, sorted[j].order] = [sorted[j].order, sorted[i].order];
+    });
   }
 
   // --- Documents ---
@@ -179,34 +211,51 @@ export default function AdminPage() {
   }
 
   function moveDoc(slug, dir) {
-    const next = structuredClone(manifest);
-    const doc = next.docs.find((d) => d.slug === slug);
-    const siblings = next.docs
-      .filter((d) => (d.categoryId || null) === (doc.categoryId || null))
-      .sort((a, b) => a.order - b.order);
-    siblings.forEach((d, idx) => (d.order = idx));
-    const i = siblings.findIndex((d) => d.slug === slug);
-    const j = i + dir;
-    if (j < 0 || j >= siblings.length) return;
-    [siblings[i].order, siblings[j].order] = [siblings[j].order, siblings[i].order];
-    persist(next);
+    mutate((m) => {
+      const doc = m.docs.find((d) => d.slug === slug);
+      const siblings = m.docs
+        .filter((d) => (d.categoryId || null) === (doc.categoryId || null))
+        .sort((a, b) => a.order - b.order);
+      siblings.forEach((d, idx) => (d.order = idx));
+      const i = siblings.findIndex((d) => d.slug === slug);
+      const j = i + dir;
+      if (j < 0 || j >= siblings.length) return;
+      [siblings[i].order, siblings[j].order] = [siblings[j].order, siblings[i].order];
+    });
   }
 
   function setDocCategory(slug, categoryId) {
-    const next = structuredClone(manifest);
-    const doc = next.docs.find((d) => d.slug === slug);
-    doc.categoryId = categoryId || null;
-    doc.order = next.docs.filter((d) => (d.categoryId || null) === (categoryId || null)).length;
-    persist(next);
+    mutate((m) => {
+      const doc = m.docs.find((d) => d.slug === slug);
+      doc.categoryId = categoryId || null;
+      doc.order = m.docs.filter(
+        (d) => d.slug !== slug && (d.categoryId || null) === (categoryId || null)
+      ).length;
+    });
   }
 
   function renameDoc(slug) {
-    const doc = manifest.docs.find((d) => d.slug === slug);
+    const doc = manifestRef.current.docs.find((d) => d.slug === slug);
     const title = prompt("Nouveau titre :", doc?.title || "");
     if (!title || !title.trim()) return;
-    const next = structuredClone(manifest);
-    next.docs.find((d) => d.slug === slug).title = title.trim();
-    persist(next);
+    mutate((m) => {
+      m.docs.find((d) => d.slug === slug).title = title.trim();
+    });
+  }
+
+  function toggleIndicator(slug) {
+    mutate((m) => {
+      const doc = m.docs.find((d) => d.slug === slug);
+      const ind = doc.indicator || { enabled: false, url: "" };
+      doc.indicator = { ...ind, enabled: !ind.enabled };
+    });
+  }
+
+  function setIndicatorUrl(slug, url) {
+    mutate((m) => {
+      const doc = m.docs.find((d) => d.slug === slug);
+      doc.indicator = { ...(doc.indicator || { enabled: true }), url: url.trim() };
+    });
   }
 
   async function deleteDoc(slug) {
@@ -214,7 +263,7 @@ export default function AdminPage() {
     const res = await fetch(`/api/admin/docs/${slug}`, { method: "DELETE" });
     if (res.ok) {
       const data = await res.json();
-      setManifest(data.manifest);
+      applyManifest(data.manifest);
       showToast("✓ supprimé");
     } else {
       showToast("✗ erreur suppression");
@@ -259,6 +308,16 @@ export default function AdminPage() {
   const cats = [...manifest.categories].sort((a, b) => a.order - b.order);
   const uncategorized = docsIn(null);
   const L = linksDraft || {};
+
+  const docRowProps = {
+    cats,
+    onMove: moveDoc,
+    onSetCat: setDocCategory,
+    onRename: renameDoc,
+    onDelete: deleteDoc,
+    onToggleInd: toggleIndicator,
+    onSetIndUrl: setIndicatorUrl,
+  };
 
   return (
     <div className="admin-wrap">
@@ -429,15 +488,7 @@ export default function AdminPage() {
               </button>
             </div>
             {docsIn(c.id).map((d) => (
-              <DocRow
-                key={d.slug}
-                doc={d}
-                cats={cats}
-                onMove={moveDoc}
-                onSetCat={setDocCategory}
-                onRename={renameDoc}
-                onDelete={deleteDoc}
-              />
+              <DocRow key={d.slug} doc={d} {...docRowProps} />
             ))}
             {docsIn(c.id).length === 0 && <div className="doc-row hint">// vide</div>}
           </div>
@@ -450,15 +501,7 @@ export default function AdminPage() {
             </span>
           </div>
           {uncategorized.map((d) => (
-            <DocRow
-              key={d.slug}
-              doc={d}
-              cats={cats}
-              onMove={moveDoc}
-              onSetCat={setDocCategory}
-              onRename={renameDoc}
-              onDelete={deleteDoc}
-            />
+            <DocRow key={d.slug} doc={d} {...docRowProps} />
           ))}
           {uncategorized.length === 0 && <div className="doc-row hint">// vide</div>}
         </div>
@@ -469,35 +512,68 @@ export default function AdminPage() {
   );
 }
 
-function DocRow({ doc, cats, onMove, onSetCat, onRename, onDelete }) {
+function DocRow({ doc, cats, onMove, onSetCat, onRename, onDelete, onToggleInd, onSetIndUrl }) {
+  const ind = doc.indicator || { enabled: false, url: "" };
+  const [urlDraft, setUrlDraft] = useState(ind.url);
+
+  useEffect(() => {
+    setUrlDraft(ind.url);
+  }, [ind.url]);
+
   return (
-    <div className="doc-row">
-      <span className="arrows">
-        <button className="btn small" onClick={() => onMove(doc.slug, -1)} title="Monter">
-          ↑
+    <>
+      <div className="doc-row">
+        <span className="arrows">
+          <button className="btn small" onClick={() => onMove(doc.slug, -1)} title="Monter">
+            ↑
+          </button>
+          <button className="btn small" onClick={() => onMove(doc.slug, 1)} title="Descendre">
+            ↓
+          </button>
+        </span>
+        <span className="doc-name">{doc.title}</span>
+        <select value={doc.categoryId || ""} onChange={(e) => onSetCat(doc.slug, e.target.value)}>
+          <option value="">Sans catégorie</option>
+          {cats.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <button
+          className={`btn small ind-toggle ${ind.enabled ? "on" : ""}`}
+          onClick={() => onToggleInd(doc.slug)}
+          title={ind.enabled ? "Indicateur lié : activé" : "Lier un indicateur"}
+        >
+          {ind.enabled ? "● ind." : "○ ind."}
         </button>
-        <button className="btn small" onClick={() => onMove(doc.slug, 1)} title="Descendre">
-          ↓
+        <a href={`/view/${doc.slug}`} target="_blank" rel="noreferrer" className="btn small">
+          ouvrir
+        </a>
+        <button className="btn small" onClick={() => onRename(doc.slug)}>
+          renommer
         </button>
-      </span>
-      <span className="doc-name">{doc.title}</span>
-      <select value={doc.categoryId || ""} onChange={(e) => onSetCat(doc.slug, e.target.value)}>
-        <option value="">Sans catégorie</option>
-        {cats.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-          </option>
-        ))}
-      </select>
-      <a href={`/view/${doc.slug}`} target="_blank" rel="noreferrer" className="btn small">
-        ouvrir
-      </a>
-      <button className="btn small" onClick={() => onRename(doc.slug)}>
-        renommer
-      </button>
-      <button className="btn small danger" onClick={() => onDelete(doc.slug)}>
-        suppr
-      </button>
-    </div>
+        <button className="btn small danger" onClick={() => onDelete(doc.slug)}>
+          suppr
+        </button>
+      </div>
+      {ind.enabled && (
+        <div className="ind-edit-row">
+          <input
+            type="url"
+            placeholder="https://www.tradingview.com/script/… (lien de l'indicateur)"
+            value={urlDraft}
+            onChange={(e) => setUrlDraft(e.target.value)}
+          />
+          <button
+            className="btn small"
+            disabled={urlDraft.trim() === ind.url}
+            onClick={() => onSetIndUrl(doc.slug, urlDraft)}
+          >
+            ok
+          </button>
+        </div>
+      )}
+    </>
   );
 }

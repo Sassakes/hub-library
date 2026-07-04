@@ -97,7 +97,14 @@ export default async function Home({ searchParams }) {
                 <div className="grid">
                   {s.docs.map((d) => (
                     <Link key={d.slug} href={`/view/${d.slug}`} className="card">
-                      <div className="title">{d.title}</div>
+                      <div className="title">
+                        {d.title}
+                        {d.indicator?.enabled && d.indicator?.url && (
+                          <span className="ind-badge" title="Indicateur TradingView lié">
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
+                          </span>
+                        )}
+                      </div>
                       <div className="meta">
                         {fmtDate(d.createdAt)} · {(d.size / 1024).toFixed(0)} Ko
                       </div>
