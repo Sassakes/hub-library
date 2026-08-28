@@ -1,4 +1,5 @@
 import "./globals.css";
+import { getLang } from "@/lib/i18n";
 
 export const metadata = {
   title: "The Hub · Library",
@@ -6,13 +7,14 @@ export const metadata = {
 };
 
 export default function RootLayout({ children }) {
+  const lang = getLang();
   return (
-    <html lang="fr">
+    <html lang={lang}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=JetBrains+Mono:wght@400;500;700&display=swap"
+          href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap"
           rel="stylesheet"
         />
       </head>

@@ -6,12 +6,14 @@ Bibliothèque perso pour héberger et organiser tes fichiers `.html` (masterclas
 
 ---
 
-## Identifiants générés
+## Identifiants admin
 
 - **URL admin :** `/admin`
-- **Mot de passe :** `h6XEif5ZwwxalpXGhCQEUTbd`
+- **Mot de passe :** défini par toi, uniquement dans les variables d'environnement Vercel
+  (`ADMIN_PASSWORD_HASH` / `SESSION_SECRET`) — **jamais dans ce dépôt, qui est public.**
 
-⚠️ Le mot de passe n'est jamais stocké en clair : seul son hash SHA-256 est dans les variables d'environnement. Change-le si tu veux (voir plus bas).
+⚠️ Le mot de passe n'est jamais stocké en clair : seul son hash SHA-256 est dans les
+variables d'environnement. Voir « Changer le mot de passe » plus bas pour en générer un.
 
 ---
 
@@ -20,10 +22,15 @@ Bibliothèque perso pour héberger et organiser tes fichiers `.html` (masterclas
 1. **Push le projet sur GitHub** (repo privé recommandé).
 2. Sur [vercel.com](https://vercel.com) → **Add New Project** → importe le repo. Framework détecté : Next.js, rien à changer.
 3. **Storage → Create Database → Blob** → attache le store au projet. La variable `BLOB_READ_WRITE_TOKEN` est injectée automatiquement.
-4. **Settings → Environment Variables**, ajoute :
-   - `ADMIN_PASSWORD_HASH` = `325eed9141f5905c7db8813e6c1ddf3a2edd50178f86ffba829144d0893f3875`
-   - `SESSION_SECRET` = `5b5dd9f8ee739cf53ec96fb29fe06aeef324367613f0572836fc8191364e4bac`
-5. **Deploy**. C'est en ligne.
+4. **Storage → Marketplace → Redis (Upstash)** → attache un store Redis au projet. Alimente le
+   compteur d'apprenants (`middleware.js`) — sans lui, le site fonctionne quand même, la ligne
+   de preuve sociale reste simplement absente. Vérifie les noms des variables injectées
+   (`UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`, lues par `Redis.fromEnv()`).
+5. **Settings → Environment Variables**, génère et ajoute (voir « Changer le mot de passe » et
+   « Régénérer le SESSION_SECRET » ci-dessous pour les commandes) :
+   - `ADMIN_PASSWORD_HASH`
+   - `SESSION_SECRET`
+6. **Deploy**. C'est en ligne.
 
 ## En local
 
