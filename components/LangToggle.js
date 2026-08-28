@@ -15,10 +15,16 @@ export default function LangToggle({ lang }) {
     // Portée sur .gexdash.app (domaine parent), pas sur l'hôte : sans effet
     // aujourd'hui, mais prépare une synchronisation future avec le terminal
     // sans nouvelle migration. Sur localhost/preview Vercel, .gexdash.app
-        // n'est pas un domaine valide pour ce host — le navigateur rejetterait
+    // n'est pas un domaine valide pour ce host — le navigateur rejetterait
     // silencieusement le cookie, donc on omet l'attribut Domain hors prod.
-    const onGexdash =
-      typeof window !== "undefined" && window.location.hostname.endsWith("gexdash.app");
+    //
+    // Comparaison EXACTE ou sous-domaine (pas endsWith("gexdash.app") nu,
+    // qui matcherait aussi un hôte non apparenté comme "notgexdash.app").
+    // Sans conséquence réelle ici — un navigateur refuse de toute façon
+    // qu'une page pose un cookie Domain=.gexdash.app si son propre hôte
+    // n'est pas gexdash.app ou un sous-domaine — mais c'est le bon motif.
+    const host = typeof window !== "undefined" ? window.location.hostname : "";
+    const onGexdash = host === "gexdash.app" || host.endsWith(".gexdash.app");
     const domainAttr = onGexdash ? "; domain=.gexdash.app" : "";
     const secureAttr = typeof window !== "undefined" && window.location.protocol === "https:" ? "; secure" : "";
     document.cookie = `${LANG_COOKIE}=${l}; path=/; max-age=${60 * 60 * 24 * 365}${domainAttr}; samesite=lax${secureAttr}`;

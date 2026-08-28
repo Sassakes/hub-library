@@ -115,6 +115,13 @@
   --sans: "Space Grotesk", var(--mono);
 
   --on-gold-dark: #12100a; /* [NEW] — theme.css a --on-teal-dark/--on-red-dark, rien pour l'or */
+
+  /* Alias de compatibilité : app/admin/page.js (volontairement inchangé
+     cette passe) référence encore --text-dim en inline style. L'ancien
+     token portait exactement la valeur de --muted ; il est réintroduit
+     ici sous son nom historique plutôt que d'éditer une page hors
+     périmètre pour un remplacement à valeur strictement identique. */
+  --text-dim: var(--muted);
 }
 
 /* Accent par parcours. Position dans le DOM = ordre du parcours, pas

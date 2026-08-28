@@ -160,7 +160,20 @@ export default async function Home({ searchParams }) {
   const [manifest, learners] = await Promise.all([getManifest(), getLearners()]);
   const lang = getLang();
   const t = dict[lang];
-  const isAuth = isAuthenticated();
+  // isAuthenticated() est désormais appelée sur la page PUBLIQUE (avant P6,
+  // seul /admin l'utilisait). verify() ne touche SESSION_SECRET que si un
+  // cookie hub_session est présent — donc inatteignable pour l'immense
+  // majorité des visiteurs — mais un visiteur déjà connecté qui atterrit
+  // ici pendant que SESSION_SECRET est mal configuré (ex. déploiement
+  // preview sans toutes les env vars) ferait planter la page d'accueil
+  // entière au lieu de simplement ne pas voir le lien admin. Échec fermé :
+  // en cas de doute, pas de lien admin, jamais de 500 public.
+  let isAuth = false;
+  try {
+    isAuth = isAuthenticated();
+  } catch {
+    isAuth = false;
+  }
 
   const links = manifest.links || {};
   const cats = [...manifest.categories].sort((a, b) => a.order - b.order);
@@ -293,10 +306,14 @@ export default async function Home({ searchParams }) {
             </div>
           )}
 
+          {/* Pas de filtrage réel branché : ni le clavier "/" (retiré, il
+              mentait sur un raccourci inexistant) ni la saisie elle-même
+              ne font quoi que ce soit pour l'instant. Champ visuel from
+              the approved preview — sujet à trancher : le brancher pour
+              de vrai, ou le retirer. Voir le résumé de revue. */}
           <label className="search">
             <IconSearch />
             <input type="text" placeholder={t.searchPlaceholder} />
-            <kbd>/</kbd>
           </label>
         </div>
       </div>
