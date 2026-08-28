@@ -149,6 +149,15 @@
   padding: 0;
 }
 html {
+  /* color-scheme:dark indique au NAVIGATEUR que la page est sombre. Il ne
+     s'agit pas de cosmétique : c'est ce qui fait peindre le canevas par
+     défaut en sombre AVANT que la moindre règle CSS ne s'applique, et rend
+     sombres les éléments que la feuille de style ne contrôle pas
+     (ascenseurs, champs natifs, fond inter-navigation). Sans cette
+     déclaration, le blanc par défaut du navigateur transparaît pendant les
+     instants où rien n'est encore peint. */
+  color-scheme: dark;
+  background: var(--bg);
   scrollbar-color: var(--line-strong) var(--bg);
   scroll-behavior: smooth;
 }
@@ -1380,6 +1389,9 @@ select:focus {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  /* Filet de sécurité : si l'iframe n'a pas encore de boîte (mise en page
+     en cours), c'est ce conteneur qui est visible derrière. */
+  background: var(--bg);
 }
 .viewer-bar {
   display: flex;
@@ -1414,5 +1426,15 @@ select:focus {
   flex: 1;
   border: 0;
   width: 100%;
-  background: #fff;
+  /* Était `background:#fff` — la cause du flash blanc à chaque ouverture
+     de cours. L'iframe peint son fond dès qu'elle existe, donc pendant
+     l'aller-retour vers /api/raw/[slug] l'utilisateur recevait un plein
+     écran blanc au milieu d'une interface sombre.
+
+     Ce n'était jamais le contenu : les 18 documents sont eux-mêmes
+     sombres (--bg:#0E0E10, vérifié sur les 18). Seul le fond de l'iframe
+     était clair. var(--bg) vaut #0A0A0C : l'écart avec le #0E0E10 des
+     documents est de quatre points, invisible à l'œil, là où le blanc
+     était un éblouissement. */
+  background: var(--bg);
 }
