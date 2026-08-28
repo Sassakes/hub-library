@@ -577,52 +577,6 @@ main {
   padding: var(--sp-10) 20px 80px;
 }
 
-.strip {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-md);
-  padding: 12px var(--sp-4);
-  font-size: var(--fs-sm);
-  color: var(--muted);
-  margin-bottom: var(--sp-12);
-  position: relative;
-  overflow: hidden;
-}
-.strip::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 1px;
-  background: var(--hair);
-}
-.strip .dot {
-  width: 7px;
-  height: 7px;
-  border-radius: var(--r-full);
-  background: var(--faint);
-  flex: none;
-}
-.strip.live {
-  border-color: rgba(var(--teal-rgb), var(--a-medium));
-  color: var(--text);
-}
-.strip.live .dot {
-  background: var(--teal);
-  box-shadow: var(--glow-live);
-  animation: pulse 2s ease-in-out infinite;
-}
-.strip.live strong {
-  color: var(--teal);
-  font-weight: var(--fw-bold);
-}
-@keyframes pulse {
-  50% {
-    opacity: 0.35;
-  }
-}
 .empty {
   color: var(--muted);
   font-family: var(--mono);

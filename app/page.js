@@ -247,17 +247,13 @@ export default async function Home({ searchParams }) {
             </span>
             <span className="lbl">@gexdash</span>
           </a>
-          {links.discord?.enabled && links.discord?.invite && (
-            <>
-              <div className="csep" />
-              <a className="clink" href={links.discord.invite} target="_blank" rel="noreferrer">
-                <span className="ic">
-                  <IconDiscordBrand />
-                </span>
-                <span className="lbl">{t.discord}</span>
-              </a>
-            </>
-          )}
+          <div className="csep" />
+          <a className="clink" href="https://discord.gg/WCxEsGWCb" target="_blank" rel="noreferrer">
+            <span className="ic">
+              <IconDiscordBrand />
+            </span>
+            <span className="lbl">{t.discord}</span>
+          </a>
           <div className="csep" />
           <LangToggle lang={lang} />
           {isAuth && (
@@ -339,19 +335,6 @@ export default async function Home({ searchParams }) {
       </div>
 
       <main>
-        {links.discord?.enabled && links.discord?.invite ? (
-          <a href={links.discord.invite} target="_blank" rel="noreferrer" className="strip live">
-            <span className="dot" />
-            {t.discordLive}
-            <strong>{t.discordLiveCta}</strong>
-          </a>
-        ) : (
-          <div className="strip">
-            <span className="dot" />
-            <span>{t.discordIdle}</span>
-          </div>
-        )}
-
         {total === 0 && <p className="empty">{t.empty}</p>}
 
         {visibleTracks.map(
