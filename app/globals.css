@@ -461,49 +461,6 @@ header::before {
   font-variant-numeric: tabular-nums;
 }
 
-.search {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-3);
-  max-width: 440px;
-  background: var(--surface);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-sm);
-  padding: 11px var(--sp-4);
-  transition: var(--t-base);
-}
-.search:focus-within {
-  border-color: rgba(var(--gold-rgb), var(--a-medium));
-  background: var(--surface2);
-}
-.search svg {
-  width: 15px;
-  height: 15px;
-  color: var(--faint);
-  flex: none;
-}
-.search input {
-  flex: 1;
-  background: none;
-  border: none;
-  outline: none;
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: var(--fs-sm);
-  min-width: 0;
-}
-.search input::placeholder {
-  color: var(--faint);
-}
-.search kbd {
-  font-family: var(--mono);
-  font-size: var(--fs-micro);
-  color: var(--faint);
-  border: 1px solid var(--line-strong);
-  border-radius: var(--r-xs);
-  padding: 2px 6px;
-}
-
 /* ════════ FILTRES ════════ */
 .filterbar {
   position: sticky;

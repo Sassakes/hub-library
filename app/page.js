@@ -14,7 +14,7 @@ import {
   scriptIcon,
   buildTrackSlots,
 } from "@/lib/taxonomy";
-import { Icon, IconMark, IconTerminal, IconTradingView, IconXBrand, IconDiscordBrand, IconSearch } from "@/components/icons";
+import { Icon, IconMark, IconTerminal, IconTradingView, IconXBrand, IconDiscordBrand } from "@/components/icons";
 import LangToggle from "@/components/LangToggle";
 
 export const revalidate = 0;
@@ -301,16 +301,6 @@ export default async function Home({ searchParams }) {
               </span>
             </div>
           )}
-
-          {/* Pas de filtrage réel branché : ni le clavier "/" (retiré, il
-              mentait sur un raccourci inexistant) ni la saisie elle-même
-              ne font quoi que ce soit pour l'instant. Champ visuel from
-              the approved preview — sujet à trancher : le brancher pour
-              de vrai, ou le retirer. Voir le résumé de revue. */}
-          <label className="search">
-            <IconSearch />
-            <input type="text" placeholder={t.searchPlaceholder} />
-          </label>
         </div>
       </div>
 
