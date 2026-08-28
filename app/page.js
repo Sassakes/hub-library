@@ -1,140 +1,428 @@
 import Link from "next/link";
 import { getManifest } from "@/lib/store";
+import { isAuthenticated } from "@/lib/session";
+import { getLang, dict, fmtDate, fmtSize } from "@/lib/i18n";
+import { getLearners, LEARNERS_MIN } from "@/lib/counter";
+import {
+  isAnnex,
+  isCapstone,
+  TRACK_ACCENT,
+  TRACK_ICON,
+  TRACK_TAGLINE,
+  DOC_ICON,
+  COMING_SOON,
+  scriptIcon,
+  buildTrackSlots,
+} from "@/lib/taxonomy";
+import { Icon, IconMark, IconTerminal, IconTradingView, IconXBrand, IconDiscordBrand, IconSearch } from "@/components/icons";
+import LangToggle from "@/components/LangToggle";
 
 export const revalidate = 0;
 
-function fmtDate(ts) {
-  return new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+function ModuleCard({ doc, num, lang, t }) {
+  const capstone = isCapstone(doc);
+  const icon = DOC_ICON[doc.slug] || "chart";
+  return (
+    <Link href={`/view/${doc.slug}`} className={`card${capstone ? " cap" : ""}`}>
+      <div className="ghost">{num}</div>
+      <div className="crow">
+        <div className="thumb">
+          <Icon name={icon} />
+        </div>
+        {capstone ? (
+          <span className="tag cap">capstone</span>
+        ) : (
+          <span className="num">
+            {t.moduleLabel} {num}
+          </span>
+        )}
+        {!capstone && doc.indicator?.enabled && doc.indicator?.url && (
+          <span className="linked" title={t.indicatorTag}>
+            <Icon name="indicator" />
+          </span>
+        )}
+      </div>
+      <div className="t">{doc.title}</div>
+      <div className="foot">
+        <span>
+          {fmtDate(doc.createdAt, lang)} · {fmtSize(doc.size, lang)}
+        </span>
+        <span className="go">→</span>
+      </div>
+    </Link>
+  );
+}
+
+function SoonCard({ entry, num, lang, t }) {
+  return (
+    <div className="card soon">
+      <div className="ghost">{num}</div>
+      <div className="crow">
+        <div className="thumb">
+          <Icon name={entry.icon} />
+        </div>
+        <span className="num">
+          {t.moduleLabel} {num} · {t.soonSuffix}
+        </span>
+      </div>
+      <div className="t">{lang === "en" ? entry.en : entry.fr}</div>
+      <div className="foot">
+        <span>{t.soonNote}</span>
+      </div>
+    </div>
+  );
+}
+
+function AnnexCard({ doc, lang, t }) {
+  const icon = DOC_ICON[doc.slug] || "notes";
+  const tag = doc.indicator?.enabled ? t.indicatorTag : t.referenceTag;
+  return (
+    <Link href={`/view/${doc.slug}`} className="card annex">
+      <div className="crow">
+        <div className="thumb">
+          <Icon name={icon} />
+        </div>
+        <span className="tag">{tag}</span>
+      </div>
+      <div className="t">{doc.title}</div>
+      <div className="foot">
+        <span>
+          {fmtDate(doc.createdAt, lang)} · {fmtSize(doc.size, lang)}
+        </span>
+        <span className="go">↗</span>
+      </div>
+    </Link>
+  );
+}
+
+function TrackSection({ idx, cat, modules, annexes, soon, lang, t }) {
+  const accent = TRACK_ACCENT[cat.id] || "p-gex";
+  const icon = TRACK_ICON[cat.id] || "chart";
+  const tagline = TRACK_TAGLINE[cat.id]?.[lang];
+  const slots = buildTrackSlots(modules, soon);
+  const trackNum = String(idx + 1).padStart(2, "0");
+
+  const countWord = annexes.length
+    ? `${annexes.length} ${t.annexesWord}`
+    : soon.length
+    ? `${soon.length} ${t.comingWord}`
+    : null;
+  const sub = [
+    `${t.trackWord} ${trackNum}`,
+    tagline,
+    `${modules.length} ${t.modulesWord}`,
+    countWord,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <section className={`sec ${accent}`} id={`s-${cat.id}`}>
+      <div className="sechead">
+        <div className="secglyph">
+          <Icon name={icon} />
+        </div>
+        <div className="sectext">
+          <h3>{cat.name}</h3>
+          <div className="sub">{sub}</div>
+        </div>
+        <div className="rule" />
+      </div>
+
+      <div className="grid">
+        {slots.map((slot) =>
+          slot.type === "soon" ? (
+            <SoonCard key={`soon-${cat.id}-${slot.num}`} entry={slot.data} num={slot.num} lang={lang} t={t} />
+          ) : (
+            <ModuleCard key={slot.data.slug} doc={slot.data} num={slot.num} lang={lang} t={t} />
+          )
+        )}
+      </div>
+
+      {annexes.length > 0 && (
+        <>
+          <div className="annexhead">
+            <span>{t.appendicesLabel}</span>
+            <div className="rule" />
+          </div>
+          <div className="grid">
+            {annexes.map((doc) => (
+              <AnnexCard key={doc.slug} doc={doc} lang={lang} t={t} />
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
 }
 
 export default async function Home({ searchParams }) {
-  const manifest = await getManifest();
+  const [manifest, learners] = await Promise.all([getManifest(), getLearners()]);
+  const lang = getLang();
+  const t = dict[lang];
+  // isAuthenticated() est désormais appelée sur la page PUBLIQUE (avant P6,
+  // seul /admin l'utilisait). verify() ne touche SESSION_SECRET que si un
+  // cookie hub_session est présent — donc inatteignable pour l'immense
+  // majorité des visiteurs — mais un visiteur déjà connecté qui atterrit
+  // ici pendant que SESSION_SECRET est mal configuré (ex. déploiement
+  // preview sans toutes les env vars) ferait planter la page d'accueil
+  // entière au lieu de simplement ne pas voir le lien admin. Échec fermé :
+  // en cas de doute, pas de lien admin, jamais de 500 public.
+  let isAuth = false;
+  try {
+    isAuth = isAuthenticated();
+  } catch {
+    isAuth = false;
+  }
+
   const links = manifest.links || {};
   const cats = [...manifest.categories].sort((a, b) => a.order - b.order);
   const activeCat = searchParams?.cat || null;
 
   const uncategorized = manifest.docs.filter((d) => !d.categoryId);
-  const sections = cats.map((c) => ({
-    cat: c,
-    docs: manifest.docs.filter((d) => d.categoryId === c.id).sort((a, b) => a.order - b.order),
-  }));
+
+  const tracks = cats.map((c, idx) => {
+    const all = manifest.docs.filter((d) => d.categoryId === c.id).sort((a, b) => a.order - b.order);
+    return {
+      idx,
+      cat: c,
+      modules: all.filter((d) => !isAnnex(d)),
+      annexes: all.filter((d) => isAnnex(d)),
+      soon: COMING_SOON[c.id] || [],
+    };
+  });
   if (uncategorized.length) {
-    sections.push({
-      cat: { id: "__none__", name: "Sans catégorie" },
-      docs: uncategorized.sort((a, b) => a.order - b.order),
+    tracks.push({
+      idx: tracks.length,
+      cat: { id: "__none__", name: lang === "en" ? "Uncategorized" : "Sans catégorie" },
+      modules: uncategorized.sort((a, b) => a.order - b.order),
+      annexes: [],
+      soon: [],
     });
   }
 
-  const visible = activeCat ? sections.filter((s) => s.cat.id === activeCat) : sections;
+  const visibleTracks = activeCat ? tracks.filter((s) => s.cat.id === activeCat) : tracks;
   const total = manifest.docs.length;
-  const xHandle = links.x ? "@" + links.x.replace(/\/+$/, "").split("/").pop() : null;
+  const scriptCount = links.scripts?.length || 0;
+  const indicatorCount = scriptCount + manifest.docs.filter((d) => d.indicator?.enabled).length;
+  const showProof = learners !== null; // sous LEARNERS_MIN → learners est null, ligne absente du DOM
 
   return (
-    <div className="shell">
-      <aside className="sidebar">
-        <div className="prompt">
-          <span className="user">maxime@hub</span>:<span className="path">~/library</span>$
-          <span className="cursor" />
-        </div>
-        <h1>
-          THE HUB <span className="accent">LIBRARY</span>
-        </h1>
-        <Link href="/" className={`nav-cat ${!activeCat ? "active" : ""}`}>
-          Tout <span className="nav-count">{total}</span>
-        </Link>
-        {sections.map((s) => (
-          <Link
-            key={s.cat.id}
-            href={`/?cat=${encodeURIComponent(s.cat.id)}`}
-            className={`nav-cat ${activeCat === s.cat.id ? "active" : ""}`}
-          >
-            {s.cat.name} <span className="nav-count">{s.docs.length}</span>
-          </Link>
-        ))}
-
-        {(links.tradingview || links.x) && (
-          <div className="ext-block">
-            <div className="ext-title">// externes</div>
-            {links.tradingview && (
-              <a href={links.tradingview} target="_blank" rel="noreferrer" className="ext-link">
-                <span className="ext-icon">TV</span> TradingView
-              </a>
-            )}
-            {links.x && (
-              <a href={links.x} target="_blank" rel="noreferrer" className="ext-link">
-                <span className="ext-icon">𝕏</span> {xHandle || "X"}
-              </a>
-            )}
+    <>
+      <header>
+        <div className="brandblock">
+          <IconMark />
+          <div className="brand">
+            <h1>
+              <b>Gex</b>Dash<span> · </span>
+              <span className="pg">The Hub</span>
+            </h1>
           </div>
-        )}
-
-        <div className="sidebar-footer">
-          <Link href="/admin">→ admin</Link>
         </div>
-      </aside>
 
-      <main className="main">
+        <div className="spacer" />
+
+        <nav className="community">
+          <a className="clink primary" href="https://dash.gexdash.app">
+            <span className="ic">
+              <IconTerminal />
+            </span>
+            <span className="lbl">{t.terminal}</span>
+          </a>
+          {links.tradingview && (
+            <>
+              <div className="csep" />
+              <a className="clink" href={links.tradingview} target="_blank" rel="noreferrer">
+                <span className="ic">
+                  <IconTradingView />
+                </span>
+                <span className="lbl">{t.tradingview}</span>
+              </a>
+            </>
+          )}
+          <div className="csep" />
+          <a className="clink" href="https://x.com/gexdash" target="_blank" rel="noreferrer">
+            <span className="ic">
+              <IconXBrand />
+            </span>
+            <span className="lbl">@gexdash</span>
+          </a>
+          {links.discord?.enabled && links.discord?.invite && (
+            <>
+              <div className="csep" />
+              <a className="clink" href={links.discord.invite} target="_blank" rel="noreferrer">
+                <span className="ic">
+                  <IconDiscordBrand />
+                </span>
+                <span className="lbl">{t.discord}</span>
+              </a>
+            </>
+          )}
+          <div className="csep" />
+          <LangToggle lang={lang} />
+          {isAuth && (
+            <>
+              <div className="csep" />
+              <Link href="/admin" className="clink">
+                <span className="lbl">{t.admin}</span>
+              </Link>
+            </>
+          )}
+        </nav>
+      </header>
+
+      <div className="hero">
+        <div className="heroin">
+          <div className="eyebrow">
+            <span className="pulse" />
+            <span>{t.heroEyebrow}</span>
+          </div>
+
+          <h2 dangerouslySetInnerHTML={{ __html: t.heroHeadlineHtml }} />
+
+          <p>{t.heroBody}</p>
+
+          <div className="stats">
+            <div className="stat">
+              <div className="v">{total}</div>
+              <div className="k">{t.statModules}</div>
+            </div>
+            <div className="stat">
+              <div className="v">{cats.length}</div>
+              <div className="k">{t.statTracks}</div>
+            </div>
+            <div className="stat">
+              <div className="v">{indicatorCount}</div>
+              <div className="k">{t.statIndicators}</div>
+            </div>
+          </div>
+
+          {showProof && (
+            <div className="proof">
+              <span className="livedot" />
+              <span>
+                <b>{learners}</b> {t.proofSuffix}
+              </span>
+            </div>
+          )}
+
+          {/* Pas de filtrage réel branché : ni le clavier "/" (retiré, il
+              mentait sur un raccourci inexistant) ni la saisie elle-même
+              ne font quoi que ce soit pour l'instant. Champ visuel from
+              the approved preview — sujet à trancher : le brancher pour
+              de vrai, ou le retirer. Voir le résumé de revue. */}
+          <label className="search">
+            <IconSearch />
+            <input type="text" placeholder={t.searchPlaceholder} />
+          </label>
+        </div>
+      </div>
+
+      <div className="filterbar">
+        <div className="filterin">
+          <div className="seg">
+            <Link href="/" className={!activeCat ? "on" : ""}>
+              <span>{t.all}</span> <span className="n">{total}</span>
+            </Link>
+            {tracks.map((s) => (
+              <Link
+                key={s.cat.id}
+                href={`/?cat=${encodeURIComponent(s.cat.id)}`}
+                className={`${TRACK_ACCENT[s.cat.id] || ""} ${activeCat === s.cat.id ? "on" : ""}`}
+              >
+                <span className="pip" />
+                {s.cat.name} <span className="n">{s.modules.length + s.annexes.length}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <main>
         {links.discord?.enabled && links.discord?.invite ? (
-          <a href={links.discord.invite} target="_blank" rel="noreferrer" className="discord-strip live">
-            <span className="dot" /> Le Discord The Hub est ouvert — <strong>rejoindre&nbsp;→</strong>
+          <a href={links.discord.invite} target="_blank" rel="noreferrer" className="strip live">
+            <span className="dot" />
+            {t.discordLive}
+            <strong>{t.discordLiveCta}</strong>
           </a>
         ) : (
-          <div className="discord-strip">
-            <span className="dot idle" /> // Discord The Hub — en préparation. Ça arrive.
+          <div className="strip">
+            <span className="dot" />
+            <span>{t.discordIdle}</span>
           </div>
         )}
 
-        {total === 0 && (
-          <p className="empty">
-            // Aucun document pour l&apos;instant. Passe par l&apos;admin pour uploader tes .html.
-          </p>
-        )}
-        {visible.map(
+        {total === 0 && <p className="empty">{t.empty}</p>}
+
+        {visibleTracks.map(
           (s) =>
-            s.docs.length > 0 && (
-              <section key={s.cat.id}>
-                <h2 className="section-title">{s.cat.name}</h2>
-                <div className="grid">
-                  {s.docs.map((d) => (
-                    <Link key={d.slug} href={`/view/${d.slug}`} className="card">
-                      <div className="title">
-                        {d.title}
-                        {d.indicator?.enabled && d.indicator?.url && (
-                          <span className="ind-badge" title="Indicateur TradingView lié">
-                            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
-                          </span>
-                        )}
-                      </div>
-                      <div className="meta">
-                        {fmtDate(d.createdAt)} · {(d.size / 1024).toFixed(0)} Ko
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </section>
+            (s.modules.length > 0 || s.annexes.length > 0 || s.soon.length > 0) && (
+              <TrackSection
+                key={s.cat.id}
+                idx={s.idx}
+                cat={s.cat}
+                modules={s.modules}
+                annexes={s.annexes}
+                soon={s.soon}
+                lang={lang}
+                t={t}
+              />
             )
         )}
 
-        {!activeCat && links.scripts?.length > 0 && (
-          <section>
-            <h2 className="section-title">Indicateurs TradingView</h2>
-            <div className="grid">
+        {!activeCat && scriptCount > 0 && (
+          <section className="sec p-gex">
+            <div className="sechead">
+              <div className="secglyph">
+                <Icon name="indicator" />
+              </div>
+              <div className="sectext">
+                <h3>{t.toolbeltTitle}</h3>
+                <div className="sub">{t.toolbeltSub}</div>
+              </div>
+              <div className="rule" />
+            </div>
+
+            <div className="toolbelt">
+              <div className="tb-head">
+                <div className="tb-id">
+                  <div className="tb-av">
+                    <Icon name="person" />
+                  </div>
+                  <div>
+                    <h4>@datanalyste</h4>
+                    <div className="sub">{t.toolbeltScripts(scriptCount)}</div>
+                  </div>
+                </div>
+                {links.tradingview && (
+                  <a className="tb-cta" href={links.tradingview} target="_blank" rel="noreferrer">
+                    <span>{t.viewProfile}</span> ↗
+                  </a>
+                )}
+              </div>
+
               {links.scripts.map((s) => (
-                <a key={s.url} href={s.url} target="_blank" rel="noreferrer" className="card script-card">
-                  <div className="title">{s.name}</div>
-                  <div className="meta">Pine Script · tradingview.com ↗</div>
+                <a key={s.url} className="tb-row" href={s.url} target="_blank" rel="noreferrer">
+                  <span className="tb-ic">
+                    <Icon name={scriptIcon(s.name)} />
+                  </span>
+                  <span className="tb-name">{s.name}</span>
+                  <span className="tag">{t.pineTag}</span>
+                  <span className="tb-go">↗</span>
                 </a>
               ))}
-              {links.tradingview && (
-                <a href={links.tradingview} target="_blank" rel="noreferrer" className="card script-card more">
-                  <div className="title">Tous les scripts publiés →</div>
-                  <div className="meta">profil TradingView</div>
-                </a>
-              )}
             </div>
           </section>
         )}
       </main>
-    </div>
+
+      <footer>
+        <span>{t.footerBrand}</span>
+        <span>·</span>
+        <a href="https://dash.gexdash.app">GexDash Terminal ↗</a>
+        <span>·</span>
+        <a href="https://x.com/gexdash">@gexdash ↗</a>
+      </footer>
+    </>
   );
 }
