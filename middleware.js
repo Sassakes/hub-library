@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { Redis } from "@upstash/redis/cloudflare";
+import { isRedisConfigured, redisOptions } from "@/lib/redis-config";
 // Le middleware Next.js tourne en Edge Runtime par défaut (pas Node.js). Le
 // point d'entrée par défaut de @upstash/redis (nodejs.mjs) référence
 // process.version pour la télémétrie — inoffensif (accès protégé par un
@@ -23,10 +24,13 @@ import { Redis } from "@upstash/redis/cloudflare";
 // nous-mêmes. Bug constaté en local : les logs montraient
 // "wrangler secret put" — la commande Cloudflare, jamais correcte sur
 // Vercel — preuve que fromEnv() nu ne fonctionnerait jamais ici.
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN,
-});
+// Construit uniquement si les variables d'env existent, avec retry:false et
+// un plafond de latence — voir lib/redis-config.js. Sans ce garde-fou, le
+// retry par défaut du SDK (5 tentatives, backoff exponentiel) ajoutait
+// ~4,3 s à CHAQUE ouverture de cours tant que Redis n'était pas provisionné :
+// le middleware s'exécute avant le rendu, donc l'utilisateur attendait
+// l'intégralité de ces tentatives avant de voir quoi que ce soit.
+const redis = isRedisConfigured ? new Redis(redisOptions) : null;
 const COOKIE = "hub_learner";
 
 // Sans ce filtre, chaque passage de crawler sur /view/* se lirait comme un
@@ -37,6 +41,7 @@ const BOT =
 export async function middleware(req) {
   const res = NextResponse.next();
 
+  if (!redis) return res; // Redis non provisionné : aucun appel réseau
   if (req.cookies.get(COOKIE)) return res; // déjà compté
 
   // Un clic réel déclenche DEUX requêtes vers /view/[slug] : une marquée

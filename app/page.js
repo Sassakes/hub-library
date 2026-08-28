@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getManifest } from "@/lib/store";
+import { getManifestCached } from "@/lib/store";
 import { isAuthenticated } from "@/lib/session";
 import { getLang, dict, fmtDate, fmtSize } from "@/lib/i18n";
 import { getLearners, LEARNERS_MIN } from "@/lib/counter";
@@ -157,7 +157,7 @@ function TrackSection({ idx, cat, modules, annexes, soon, lang, t }) {
 }
 
 export default async function Home({ searchParams }) {
-  const [manifest, learners] = await Promise.all([getManifest(), getLearners()]);
+  const [manifest, learners] = await Promise.all([getManifestCached(), getLearners()]);
   const lang = getLang();
   const t = dict[lang];
   // isAuthenticated() est désormais appelée sur la page PUBLIQUE (avant P6,

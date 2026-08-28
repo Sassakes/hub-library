@@ -1,9 +1,9 @@
-import { getManifest } from "@/lib/store";
+import { getManifestCached } from "@/lib/store";
 
 export const revalidate = 0;
 
 export async function GET(_request, { params }) {
-  const manifest = await getManifest();
+  const manifest = await getManifestCached();
   const doc = manifest.docs.find((d) => d.slug === params.slug);
   if (!doc) {
     return new Response("Document introuvable", { status: 404 });
