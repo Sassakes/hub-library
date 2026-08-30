@@ -13,6 +13,7 @@ import {
   COMING_SOON,
   scriptIcon,
   buildTrackSlots,
+  docTitle,
 } from "@/lib/taxonomy";
 import { Icon, IconMark, IconTerminal, IconTradingView, IconXBrand, IconDiscordBrand } from "@/components/icons";
 import LangToggle from "@/components/LangToggle";
@@ -42,7 +43,7 @@ function ModuleCard({ doc, num, lang, t }) {
           </span>
         )}
       </div>
-      <div className="t">{doc.title}</div>
+      <div className="t">{docTitle(doc, lang)}</div>
       <div className="foot">
         <span>
           {fmtDate(doc.createdAt, lang)} · {fmtSize(doc.size, lang)}
@@ -84,7 +85,7 @@ function AnnexCard({ doc, lang, t }) {
         </div>
         <span className="tag">{tag}</span>
       </div>
-      <div className="t">{doc.title}</div>
+      <div className="t">{docTitle(doc, lang)}</div>
       <div className="foot">
         <span>
           {fmtDate(doc.createdAt, lang)} · {fmtSize(doc.size, lang)}
