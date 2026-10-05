@@ -1,4 +1,6 @@
+import { cookies } from "next/headers";
 import { getManifestCached } from "@/lib/store";
+import { LANGS, DEFAULT_LANG, LANG_COOKIE } from "@/lib/i18n-constants";
 
 export const revalidate = 0;
 
@@ -11,9 +13,43 @@ export const revalidate = 0;
 
    Les tokens sont écrits en dur : ce document est autonome, il ne charge
    pas globals.css. Valeurs alignées sur --bg / --muted / --line du thème. */
-function darkError(message, status) {
+// Messages d'erreur dans la langue du visiteur (cookie partagé), français
+// par défaut. Le document servi en cas de succès gère sa langue lui-même.
+const ERRORS = {
+  unavailable: {
+    fr: "Bibliothèque momentanément indisponible.",
+    en: "The library is temporarily unavailable.",
+    es: "La biblioteca no está disponible por el momento.",
+    de: "Die Bibliothek ist vorübergehend nicht verfügbar.",
+  },
+  notFound: {
+    fr: "Document introuvable.",
+    en: "Document not found.",
+    es: "Documento no encontrado.",
+    de: "Dokument nicht gefunden.",
+  },
+  readError: {
+    fr: "Erreur de lecture du document.",
+    en: "The document could not be read.",
+    es: "No se pudo leer el documento.",
+    de: "Das Dokument konnte nicht gelesen werden.",
+  },
+};
+
+function errorLang() {
+  try {
+    const v = cookies().get(LANG_COOKIE)?.value;
+    return LANGS.includes(v) ? v : DEFAULT_LANG;
+  } catch {
+    return DEFAULT_LANG;
+  }
+}
+
+function darkError(key, status) {
+  const lang = errorLang();
+  const message = ERRORS[key][lang];
   const body = `<!doctype html>
-<html lang="fr"><head><meta charset="utf-8">
+<html lang="${lang}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
   html,body{height:100%;margin:0}
@@ -37,11 +73,11 @@ export async function GET(_request, { params }) {
     const manifest = await getManifestCached();
     doc = manifest.docs.find((d) => d.slug === params.slug);
   } catch {
-    return darkError("Bibliothèque momentanément indisponible.", 503);
+    return darkError("unavailable", 503);
   }
 
   if (!doc || !doc.blobUrl) {
-    return darkError("Document introuvable.", 404);
+    return darkError("notFound", 404);
   }
 
   let res;
@@ -50,10 +86,10 @@ export async function GET(_request, { params }) {
   } catch {
     // fetch qui lève (réseau/URL invalide) : sans ce catch la route rendait
     // une 500 Next non stylée, donc blanche dans l'iframe.
-    return darkError("Erreur de lecture du document.", 502);
+    return darkError("readError", 502);
   }
   if (!res.ok) {
-    return darkError("Erreur de lecture du document.", 502);
+    return darkError("readError", 502);
   }
 
   const html = await res.text();

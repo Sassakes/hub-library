@@ -66,7 +66,7 @@ function SoonCard({ entry, num, lang, t }) {
           {t.moduleLabel} {num} · {t.soonSuffix}
         </span>
       </div>
-      <div className="t">{lang === "en" ? entry.en : entry.fr}</div>
+      <div className="t">{entry[lang] || entry.en || entry.fr}</div>
       <div className="foot">
         <span>{t.soonNote}</span>
       </div>
@@ -195,7 +195,7 @@ export default async function Home({ searchParams }) {
   if (uncategorized.length) {
     tracks.push({
       idx: tracks.length,
-      cat: { id: "__none__", name: lang === "en" ? "Uncategorized" : "Sans catégorie" },
+      cat: { id: "__none__", name: t.uncategorized },
       modules: uncategorized.sort((a, b) => a.order - b.order),
       annexes: [],
       soon: [],
@@ -256,7 +256,7 @@ export default async function Home({ searchParams }) {
             <span className="lbl">{t.discord}</span>
           </a>
           <div className="csep" />
-          <LangToggle lang={lang} />
+          <LangToggle lang={lang} label={t.langLabel} />
           {isAuth && (
             <>
               <div className="csep" />
