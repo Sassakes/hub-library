@@ -299,8 +299,12 @@ header::before {
   margin: 0 6px;
 }
 
-/* Bascule FR/EN — .appLang repris à l'identique de shell.js (terminal). */
+/* Sélecteur de langue — .appLang repris à l'identique de shell.js
+   (terminal, v. six langues 2026-09-30) : le boîtier du couple FR|EN
+   (fond surface2, filet fin, code en mono, actif en or), qui ne montre plus
+   que la langue courante et ouvre la liste au clic. */
 .appLang {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 1px;
@@ -309,29 +313,104 @@ header::before {
   border: 1px solid var(--hair);
   border-radius: var(--r-sm);
 }
-.appLang button {
+.appLang-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--mono);
   font-size: var(--fs-xs);
   letter-spacing: var(--ls-label);
-  color: var(--muted);
-  background: transparent;
+  font-weight: var(--fw-bold);
+  color: var(--gold);
+  background: rgba(var(--gold-rgb), var(--a-subtle));
   border: 0;
-  padding: 4px 9px;
+  cursor: pointer;
+  padding: 4px 7px 4px 9px;
   min-height: 26px;
   border-radius: var(--r-xs);
   transition: color var(--t-fast), background var(--t-fast);
 }
-.appLang button:hover {
+.appLang-btn svg {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  color: var(--muted);
+  transition: transform var(--t-fast);
+}
+.appLang-btn:hover svg,
+.appLang-btn[aria-expanded="true"] svg {
+  color: var(--gold);
+}
+.appLang-btn[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.appLang-btn:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: -2px;
+}
+.appLang-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: -1px;
+  z-index: 80;
+  min-width: 176px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  box-shadow: 0 20px 60px -12px rgba(0, 0, 0, 0.6);
+}
+.appLang-menu[hidden] {
+  display: none !important;
+}
+.appLang-menu li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-left: 2px solid transparent;
+  border-radius: var(--r-xs);
+  cursor: pointer;
+  outline: none;
+  white-space: nowrap;
+}
+.appLang-menu li .code {
+  font-family: var(--mono);
+  font-size: var(--fs-xs);
+  letter-spacing: var(--ls-label);
+  color: var(--muted);
+  width: 20px;
+  flex: none;
+}
+.appLang-menu li .name {
+  font-family: var(--sans, "Space Grotesk", sans-serif);
+  font-size: var(--fs-sm, 12.5px);
+  color: var(--muted);
+}
+.appLang-menu li:hover,
+.appLang-menu li:focus {
+  background: rgba(var(--white-rgb), var(--a-faint));
+}
+.appLang-menu li:hover .name,
+.appLang-menu li:focus .name {
   color: var(--text);
 }
-.appLang button.on {
+.appLang-menu li:focus-visible {
+  box-shadow: inset 0 0 0 1px rgba(var(--gold-rgb), 0.6);
+}
+.appLang-menu li[aria-selected="true"] {
   background: rgba(var(--gold-rgb), var(--a-subtle));
+  border-left-color: var(--gold);
+}
+.appLang-menu li[aria-selected="true"] .code {
   color: var(--gold);
   font-weight: var(--fw-bold);
 }
-.appLang button:focus-visible {
-  outline: 2px solid var(--gold);
-  outline-offset: -2px;
+.appLang-menu li[aria-selected="true"] .name {
+  color: var(--text);
 }
 
 /* ════════ HÉROS ════════ */

@@ -16,6 +16,7 @@ export default function AdminPage() {
   const [toast, setToast] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadCat, setUploadCat] = useState("");
+  const [replaceMode, setReplaceMode] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const fileRef = useRef(null);
   const toastTimer = useRef(null);
@@ -148,6 +149,32 @@ export default function AdminPage() {
       return;
     }
     setUploading(true);
+    if (replaceMode) {
+      // Un fichier par requête : chaque requête reste loin de la limite de
+      // corps de Vercel (4,5 Mo), et le bilan est exact fichier par fichier.
+      const done = [];
+      const failed = [];
+      for (const f of files) {
+        const one = new FormData();
+        one.append("mode", "replace");
+        one.append("files", f);
+        const r = await fetch("/api/admin/upload", { method: "POST", body: one });
+        const data = await r.json().catch(() => ({}));
+        if (r.ok) {
+          done.push(...data.replaced);
+          applyManifest(data.manifest);
+        } else {
+          failed.push(f.name);
+        }
+      }
+      setUploading(false);
+      showToast(
+        failed.length
+          ? `✓ ${done.length} remplacé(s) · ✗ sans correspondance : ${failed.join(", ")}`
+          : `✓ ${done.length} document(s) remplacé(s)`
+      );
+      return;
+    }
     const fd = new FormData();
     files.forEach((f) => fd.append("files", f));
     if (uploadCat) fd.append("categoryId", uploadCat);
@@ -352,6 +379,13 @@ export default function AdminPage() {
             ))}
           </select>
         </div>
+        <label style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, cursor: "pointer" }}>
+          <input type="checkbox" checked={replaceMode} onChange={(e) => setReplaceMode(e.target.checked)} />
+          <span className="hint">
+            Remplacer les modules existants (même nom de fichier) — garde le slug, la position, la catégorie et
+            l&apos;indicateur
+          </span>
+        </label>
         <div
           className={`dropzone ${dragOver ? "over" : ""}`}
           onClick={() => fileRef.current?.click()}
@@ -366,7 +400,11 @@ export default function AdminPage() {
             uploadFiles(e.dataTransfer.files);
           }}
         >
-          {uploading ? "// upload en cours…" : "// glisse tes .html ici, ou clique pour parcourir"}
+          {uploading
+            ? "// upload en cours…"
+            : replaceMode
+              ? "// glisse les .html à REMPLACER ici, ou clique pour parcourir"
+              : "// glisse tes .html ici, ou clique pour parcourir"}
         </div>
         <input
           ref={fileRef}
